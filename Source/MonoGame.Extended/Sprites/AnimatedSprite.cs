@@ -13,7 +13,7 @@ namespace MonoGame.Extended.Sprites
             : base(spriteSheet.TextureAtlas[0])
         {
             _spriteSheet = spriteSheet;
-
+            
             if (playAnimation != null)
                 Play(playAnimation);
         }

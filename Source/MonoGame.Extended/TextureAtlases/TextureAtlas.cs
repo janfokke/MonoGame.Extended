@@ -61,7 +61,7 @@ namespace MonoGame.Extended.TextureAtlases
         /// <summary>
         ///     Gets a source <see cref="Texture2D" /> image.
         /// </summary>
-        public Texture2D Texture { get; }
+        public Texture2D Texture { get; set; }
 
         /// <summary>
         ///     Gets a list of regions in the <see cref="TextureAtlas" />.
