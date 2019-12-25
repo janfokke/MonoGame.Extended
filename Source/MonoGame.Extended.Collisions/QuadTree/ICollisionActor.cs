@@ -1,4 +1,6 @@
-﻿namespace MonoGame.Extended.Collisions
+﻿using System.ComponentModel;
+
+namespace MonoGame.Extended.Collisions
 {
     /// <summary>
     /// An actor that can be collided with.
