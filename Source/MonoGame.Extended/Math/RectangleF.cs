@@ -424,7 +424,7 @@ namespace MonoGame.Extended
         ///     <see cref="RectangleF" />; otherwise,
         ///     <c>false</c>.
         /// </returns>
-        public bool Intersects(RectangleF rectangle)
+        public bool Intersects(ref RectangleF rectangle)
         {
             return Intersects(ref this, ref rectangle);
         }

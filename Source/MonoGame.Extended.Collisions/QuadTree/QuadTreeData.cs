@@ -1,5 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
+using Microsoft.Xna.Framework;
 
 namespace MonoGame.Extended.Collisions
 {
@@ -9,9 +11,11 @@ namespace MonoGame.Extended.Collisions
     /// </summary>
     public class QuadtreeData
     {
-        public QuadtreeData(ICollisionActor target)
+        public QuadtreeData(ICollisionActor target, int collisionLayerFlags = 1, int collisionMaskFlags = 1)
         {
             Target = target;
+            CollisionLayerFlags = collisionLayerFlags;
+            CollisionMaskFlags = collisionMaskFlags;
             Bounds = target.Bounds;
         }
 
@@ -27,7 +31,7 @@ namespace MonoGame.Extended.Collisions
 
         public void RemoveFromAllParents()
         {
-            foreach (Quadtree parent in Parents.ToList())
+            foreach (Quadtree parent in Parents)
             {
                 parent.Remove(this);
             }
@@ -40,6 +44,8 @@ namespace MonoGame.Extended.Collisions
         ///     Gets or sets the Target for collision.
         /// </summary>
         public ICollisionActor Target { get; set; }
+        public int CollisionLayerFlags { get; }
+        public int CollisionMaskFlags { get; }
 
         /// <summary>
         ///     Gets or sets whether Target has had its collision handled this
@@ -56,6 +62,15 @@ namespace MonoGame.Extended.Collisions
         {
             Dirty = false;
         }
+
+        public bool PositionDirty => PreviousPosition != Target.Bounds.Position;
+        
+        public void MarkPositionClean()
+        {
+            PreviousPosition = Target.Bounds.Position;
+        }
+
+        public Point2 PreviousPosition;
 
         /// <summary>
         ///     Gets or sets the bounding box for collision detection.

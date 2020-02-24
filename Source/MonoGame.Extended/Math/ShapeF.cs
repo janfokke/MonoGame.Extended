@@ -31,19 +31,19 @@
 
             if (shapeA is RectangleF rectangleA && shapeB is RectangleF rectangleB)
             {
-                intersects = rectangleA.Intersects(rectangleB);
+                intersects = rectangleA.Intersects(ref rectangleB);
             }
             else if (shapeA is CircleF circleA && shapeB is CircleF circleB)
             {
-                intersects = circleA.Intersects(circleB);
+                intersects = circleA.Intersects(ref circleB);
             }
             else if (shapeA is RectangleF rect1 && shapeB is CircleF circ1)
             {
-                return Intersects(circ1, rect1);
+                return Intersects(ref circ1, ref rect1);
             }
             else if (shapeA is CircleF circ2 && shapeB is RectangleF rect2)
             {
-                return Intersects(circ2, rect2);
+                return Intersects(ref circ2, ref rect2);
             }
 
             return intersects;
@@ -55,7 +55,7 @@
         /// <param name="circle">Circle to check intersection with rectangle.</param>
         /// <param name="rectangle">Rectangle to check intersection with circle.</param>
         /// <returns>True if the circle and rectangle intersect.</returns>
-        public static bool Intersects(CircleF circle, RectangleF rectangle)
+        public static bool Intersects(ref CircleF circle, ref RectangleF rectangle)
         {
             var closestPoint = rectangle.ClosestPointTo(circle.Center);
             return circle.Contains(closestPoint);

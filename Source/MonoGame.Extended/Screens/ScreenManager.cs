@@ -16,8 +16,7 @@ namespace MonoGame.Extended.Screens
 
         public void LoadScreen(Screen screen, Transition transition)
         {
-            if(_activeTransition != null)
-                return;
+            _activeTransition?.Dispose();
 
             _activeTransition = transition;
             _activeTransition.StateChanged += (sender, args) => LoadScreen(screen);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace MonoGame.Extended.Collisions
 {
@@ -26,6 +27,11 @@ namespace MonoGame.Extended.Collisions
             _collisionTree = new Quadtree(boundary);
         }
 
+        public void Draw(SpriteBatch spriteBatch, SpriteFont spriteFont)
+        {
+            _collisionTree.Draw(spriteBatch, spriteFont);
+        }
+
         /// <summary>
         /// Update the collision tree and process collisions.
         /// </summary>
@@ -37,28 +43,46 @@ namespace MonoGame.Extended.Collisions
         public override void Update(GameTime gameTime)
         {
             // Detect collisions
-            foreach (var value in _targetDataDictionary.Values)
+            foreach (QuadtreeData quadtreeData in _targetDataDictionary.Values)
             {
-                value.RemoveFromAllParents();
-
-                var target = value.Target;
-                var collisions =_collisionTree.Query(target.Bounds);
-
-                // Generate list of collision Infos
-                foreach (var other in collisions)
+                if (quadtreeData.PositionDirty)
                 {
-                    var collisionInfo = new CollisionEventArgs()
-                    {
-                        Other = other.Target,
-                        PenetrationVector = CalculatePenetrationVector(value.Bounds, other.Bounds)
-                    };
-
-                    target.OnCollision(collisionInfo);
-                    value.Bounds = value.Target.Bounds;
+                    quadtreeData.RemoveFromAllParents();
+                    _collisionTree.Insert(quadtreeData);
+                    quadtreeData.MarkPositionClean();
                 }
-                _collisionTree.Insert(value);
+
+                if (quadtreeData.CollisionMaskFlags != 0)
+                {
+                    var collisions = new List<QuadtreeData>();
+                    foreach (Quadtree quadtreeDataParent in quadtreeData.Parents)
+                    {
+                        quadtreeDataParent.QueryWithoutReset(quadtreeData, collisions);
+                    }
+                    for (var i = 0; i < collisions.Count; i++)
+                    {
+                        collisions[i].MarkClean();
+                    }
+
+                    // Generate list of collision Infos
+                    for (var index = 0; index < collisions.Count; index++)
+                    {
+                        var otherData = collisions[index];
+
+                        // Ignore self
+                        if (otherData == quadtreeData)
+                            continue;
+
+                        var collisionInfo = new CollisionEventArgs()
+                        {
+                            Other = otherData.Target,
+                            PenetrationVector = CalculatePenetrationVector(quadtreeData.Target.Bounds, otherData.Bounds)
+                        };
+                        quadtreeData.Target.OnCollision(collisionInfo);
+                        quadtreeData.Bounds = quadtreeData.Target.Bounds;
+                    }
+                }
             }
-            _collisionTree.Shake();
         }
 
         /// <summary>
@@ -66,11 +90,13 @@ namespace MonoGame.Extended.Collisions
         /// The target will have its OnCollision called when collisions occur.
         /// </summary>
         /// <param name="target">Target to insert.</param>
-        public void Insert(ICollisionActor target)
+        /// <param name="collisionLayerFlags">The layers that other colliders collide with</param>
+        /// <param name="collisionMaskFlags">The layers that this collider collides with</param>
+        public void Insert(ICollisionActor target, int collisionLayerFlags = 1, int collisionMaskFlags = 1)
         {
             if (!_targetDataDictionary.ContainsKey(target))
             {
-                var data = new QuadtreeData(target);
+                var data = new QuadtreeData(target, collisionLayerFlags, collisionMaskFlags);
                 _targetDataDictionary.Add(target, data);
                 _collisionTree.Insert(data);
             }
@@ -109,7 +135,7 @@ namespace MonoGame.Extended.Collisions
         /// <param name="a">The penetrating shape.</param>
         /// <param name="b">The shape being penetrated.</param>
         /// <returns>The distance vector from the edge of b to a's Position</returns>
-        private static Vector2 CalculatePenetrationVector(IShapeF a, IShapeF b)
+        private static Vector2 CalculatePenetrationVector(IShapeF a,IShapeF b)
         {
             switch (a)
             {
@@ -126,11 +152,9 @@ namespace MonoGame.Extended.Collisions
             throw new NotSupportedException("Shapes must be either a CircleF or RectangleF");
         }
 
-        private static Vector2 PenetrationVector(RectangleF rect1, RectangleF rect2)
+        private static Vector2 PenetrationVector(in RectangleF rect1,in RectangleF rect2)
         {
             var intersectingRectangle = RectangleF.Intersection(rect1, rect2);
-            Debug.Assert(!intersectingRectangle.IsEmpty,
-                "Violation of: !intersect.IsEmpty; Rectangles must intersect to calculate a penetration vector.");
 
             Vector2 penetration;
             if (intersectingRectangle.Width < intersectingRectangle.Height)
@@ -151,7 +175,7 @@ namespace MonoGame.Extended.Collisions
             return penetration;
         }
 
-        private static Vector2 PenetrationVector(CircleF circ1, CircleF circ2)
+        private static Vector2 PenetrationVector(in CircleF circ1,in CircleF circ2)
         {
             if (!circ1.Intersects(circ2))
             {
@@ -175,7 +199,7 @@ namespace MonoGame.Extended.Collisions
             return penetration;
         }
 
-        private static Vector2 PenetrationVector(CircleF circ, RectangleF rect)
+        private static Vector2 PenetrationVector(in CircleF circ,in RectangleF rect)
         {
             var collisionPoint = rect.ClosestPointTo(circ.Center);
             var cToCollPoint = collisionPoint - circ.Center;
@@ -223,7 +247,7 @@ namespace MonoGame.Extended.Collisions
             }
         }
 
-        private static Vector2 PenetrationVector(RectangleF rect, CircleF circ)
+        private static Vector2 PenetrationVector(in RectangleF rect,in CircleF circ)
         {
             return -PenetrationVector(circ, rect);
         }

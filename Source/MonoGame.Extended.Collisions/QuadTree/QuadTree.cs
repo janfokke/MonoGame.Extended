@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace MonoGame.Extended.Collisions
 {
@@ -11,7 +14,7 @@ namespace MonoGame.Extended.Collisions
         public const int DefaultMaxDepth = 7;
         public const int DefaultMaxObjectsPerNode = 25;
 
-        protected List<Quadtree> Children = new List<Quadtree>();
+        protected List<Quadtree> Children = new List<Quadtree>(4);
         protected HashSet<QuadtreeData> Contents = new HashSet<QuadtreeData>();
 
         /// <summary>
@@ -30,7 +33,7 @@ namespace MonoGame.Extended.Collisions
         protected int MaxObjectsPerNode { get; set; } = DefaultMaxObjectsPerNode;
 
         /// <summary>
-        ///     Gets the bounds of the area contained in this quad tree.
+        ///     Gets the bounds of the collisionActor contained in this quad tree.
         /// </summary>
         public  RectangleF NodeBounds { get; protected set; }
 
@@ -87,10 +90,8 @@ namespace MonoGame.Extended.Collisions
         /// <param name="data">Data being inserted.</param>
         public void Insert(QuadtreeData data)
         {
-            var actorBounds = data.Target.Bounds;
-            
             // Object doesn't fit into this node.
-            if (!NodeBounds.Intersects(actorBounds))
+            if (!NodeBounds.Intersects(data.Target.Bounds))
             {
                 return;
             }
@@ -106,10 +107,22 @@ namespace MonoGame.Extended.Collisions
             }
             else
             {
-                foreach (var child in Children)
+                for (var index = 0; index < 4; index++)
                 {
+                    var child = Children[index];
                     child.Insert(data);
                 }
+            }
+        }
+
+        public int LayerMask;
+
+        public void UpdateLayerMask()
+        {
+            LayerMask = 0;
+            foreach (QuadtreeData quadtreeData in Contents)
+            {
+                LayerMask |= quadtreeData.CollisionLayerFlags;
             }
         }
 
@@ -121,8 +134,8 @@ namespace MonoGame.Extended.Collisions
         {
             if (IsLeaf)
             {
-                data.RemoveParent(this);
                 Contents.Remove(data);
+                UpdateLayerMask();
             }
             else
             {
@@ -137,8 +150,6 @@ namespace MonoGame.Extended.Collisions
         {
             if (!IsLeaf)
             {
-                List<QuadtreeData> dirtyItems = new List<QuadtreeData>();
-
                 var numObjects = NumTargets();
                 if (numObjects == 0)
                 {
@@ -146,6 +157,7 @@ namespace MonoGame.Extended.Collisions
                 }
                 else if (numObjects < MaxObjectsPerNode)
                 {
+                    List<QuadtreeData> dirtyItems = new List<QuadtreeData>();
                     var process = new Queue<Quadtree>();
                     process.Enqueue(this);
                     while (process.Count > 0)
@@ -162,6 +174,7 @@ namespace MonoGame.Extended.Collisions
                         {
                             foreach (var data in processing.Contents)
                             {
+                                data.Parents.Remove(processing);
                                 if (data.Dirty == false)
                                 {
                                     AddToLeaf(data);
@@ -171,12 +184,19 @@ namespace MonoGame.Extended.Collisions
                             }
                         }
                     }
+                    for (var i = 0; i < dirtyItems.Count; i++)
+                    {
+                        dirtyItems[i].MarkClean();
+                    }
                     Children.Clear();
                 }
-
-                for (var i = 0; i < dirtyItems.Count; i++)
+                else
                 {
-                    dirtyItems[i].MarkClean();
+                    for (var index = 0; index < Children.Count; index++)
+                    {
+                        Quadtree quadtree = Children[index];
+                        quadtree.Shake();
+                    }
                 }
             }
         }
@@ -185,6 +205,7 @@ namespace MonoGame.Extended.Collisions
         {
             data.AddParent(this);
             Contents.Add(data);
+            LayerMask |= data.CollisionLayerFlags;
         }
 
         /// <summary>
@@ -192,7 +213,8 @@ namespace MonoGame.Extended.Collisions
         /// </summary>
         public void Split()
         {
-            if (CurrentDepth + 1 >= MaxDepth) return;
+            if (CurrentDepth + 1 >= MaxDepth) 
+                return;
 
             var min = NodeBounds.TopLeft;
             var max = NodeBounds.BottomRight;
@@ -205,7 +227,7 @@ namespace MonoGame.Extended.Collisions
                 RectangleF.CreateFrom(center, max),
                 RectangleF.CreateFrom(new Point2(min.X, center.Y), new Point2(center.X, max.Y))
             };
-
+            
             for (var i = 0; i < childAreas.Length; ++i)
             {
                 var node = new Quadtree(childAreas[i]);
@@ -215,49 +237,31 @@ namespace MonoGame.Extended.Collisions
 
             foreach (QuadtreeData contentQuadtree in Contents)
             {
-                foreach (Quadtree childQuadtree in Children)
+                contentQuadtree.RemoveParent(this);
+                for (var index = 0; index < 4; index++)
                 {
+                    Quadtree childQuadtree = Children[index];
                     childQuadtree.Insert(contentQuadtree);
                 }
-            }
-            Clear();
-        }
-
-        private void Clear()
-        {
-            foreach (QuadtreeData quadtreeData in Contents)
-            {
-                quadtreeData.RemoveParent(this);
             }
             Contents.Clear();
         }
 
         /// <summary>
-        ///     Queries the quadtree for targets that intersect with the given area.
+        ///     Queries the quadtree for targets that intersect with the given captureField.
         /// </summary>
-        /// <param name="area">The area to query for overlapping targets</param>
-        /// <returns>A unique list of targets intersected by area.</returns>
-        public List<QuadtreeData> Query(IShapeF area)
+        /// <param name="area">The collisionActor to query for overlapping targets</param>
+        /// <returns>A unique list of targets intersected by collisionActor.</returns>
+        internal void QueryWithoutReset(RectangleF captureField, List<QuadtreeData> recursiveResult)
         {
-            var recursiveResult = new List<QuadtreeData>();
-            QueryWithoutReset(area, recursiveResult);
-            for (var i = 0; i < recursiveResult.Count; i++)
-            {
-                recursiveResult[i].MarkClean();
-            }
-            return recursiveResult;
-        }
-
-        private void QueryWithoutReset(IShapeF area, List<QuadtreeData> recursiveResult)
-        {
-            if (!NodeBounds.Intersects(area)) 
+            if (!Shape.Intersects(NodeBounds, captureField))
                 return;
 
             if (IsLeaf)
             {
                 foreach (QuadtreeData quadtreeData in Contents)
                 {
-                    if (quadtreeData.Dirty == false && quadtreeData.Bounds.Intersects(area))
+                    if (quadtreeData.Dirty == false && quadtreeData.Bounds.Intersects(captureField))
                     {
                         recursiveResult.Add(quadtreeData);
                         quadtreeData.MarkDirty();
@@ -266,10 +270,53 @@ namespace MonoGame.Extended.Collisions
             }
             else
             {
-                for (int i = 0, size = Children.Count; i < size; i++)
+                for (int i = 0; i < 4; i++)
                 {
-                    Children[i].QueryWithoutReset(area, recursiveResult);
+                    Children[i].QueryWithoutReset(captureField, recursiveResult);
                 }
+            }
+        }
+
+        internal void QueryWithoutReset(QuadtreeData collisionActor, List<QuadtreeData> recursiveResult)
+        {
+            if(collisionActor.CollisionMaskFlags == 0 || !Shape.Intersects(NodeBounds, collisionActor.Target.Bounds))
+                return;
+
+            if (IsLeaf)
+            {
+                // Check if this quad contains items with target layer
+                if((collisionActor.CollisionMaskFlags & LayerMask) == 0)
+                    return;
+
+                foreach (QuadtreeData quadtreeData in Contents)
+                {
+                    if (quadtreeData.Dirty == false
+                        && (collisionActor.CollisionMaskFlags & quadtreeData.CollisionLayerFlags) != 0
+                        && quadtreeData.Bounds.Intersects(collisionActor.Target.Bounds))
+                    {
+                        recursiveResult.Add(quadtreeData);
+                        quadtreeData.MarkDirty();
+                    }
+                }
+            }
+            else
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    Children[i].QueryWithoutReset(collisionActor, recursiveResult);
+                }
+            }
+        }
+
+        public void Draw(SpriteBatch spriteBatch, SpriteFont spriteFont)
+        {
+            spriteBatch.DrawString(spriteFont, NumTargets().ToString() ,NodeBounds.Center, Color.Blue);
+            spriteBatch.DrawRectangle(NodeBounds, Color.Red);
+            if (IsLeaf)
+                return;
+            for (var i = 0; i < Children.Count; i++)
+            {
+                Children[i].Draw(spriteBatch,spriteFont);
             }
         }
     }
