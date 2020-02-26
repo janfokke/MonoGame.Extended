@@ -44,7 +44,7 @@ namespace MonoGame.Extended.Collisions
         /// </summary>
         public bool IsLeaf => Children.Count == 0;
 
-        public void UpdateLayerMask()
+        private void UpdateLayerMask()
         {
             LayerMask = 0;
             foreach (QuadTreeData quadTreeData in Contents)
@@ -266,10 +266,10 @@ namespace MonoGame.Extended.Collisions
             Contents.Clear();
         }
 
-        public List<QuadTreeData> Query(QuadTreeData area)
+        public List<QuadTreeData> Query(IShapeF area, int collisionLayerFlags = 1, int collisionMaskFlags = 1)
         {
             var collisions = new List<QuadTreeData>();
-            QueryWithoutReset(area, collisions);
+            QueryWithoutReset(area, collisionLayerFlags, collisionMaskFlags, collisions);
             for (var i = 0; i < collisions.Count; i++)
             {
                 collisions[i].MarkClean();
@@ -277,22 +277,22 @@ namespace MonoGame.Extended.Collisions
             return collisions;
         }
 
-        private void QueryWithoutReset(QuadTreeData queryQuadTreeData, List<QuadTreeData> recursiveResult)
+        internal void QueryWithoutReset(IShapeF area,int collisionLayerFlags, int collisionMaskFlags, List<QuadTreeData> recursiveResult)
         {
-            if (queryQuadTreeData.CollisionMaskFlags == 0 || !NodeBounds.Intersects(queryQuadTreeData.Target.Bounds))
+            if (collisionMaskFlags == 0 || !NodeBounds.Intersects(area))
                 return;
 
             if (IsLeaf)
             {
                 // Check if this quad contains items with target layer
-                if ((queryQuadTreeData.CollisionMaskFlags & LayerMask) == 0)
+                if ((collisionMaskFlags & LayerMask) == 0)
                     return;
 
                 foreach (QuadTreeData quadTreeData in Contents)
                 {
                     if (quadTreeData.Dirty == false
-                        && (queryQuadTreeData.CollisionMaskFlags & quadTreeData.CollisionLayerFlags) != 0
-                        && quadTreeData.Bounds.Intersects(queryQuadTreeData.Target.Bounds))
+                        && (collisionMaskFlags & quadTreeData.CollisionLayerFlags) != 0
+                        && quadTreeData.Bounds.Intersects(area))
                     {
                         recursiveResult.Add(quadTreeData);
                         quadTreeData.MarkDirty();
@@ -303,7 +303,7 @@ namespace MonoGame.Extended.Collisions
             {
                 for (int i = 0; i < 4; i++)
                 {
-                    Children[i].QueryWithoutReset(queryQuadTreeData, recursiveResult);
+                    Children[i].QueryWithoutReset(area,  collisionLayerFlags,  collisionMaskFlags, recursiveResult);
                 }
             }
         }

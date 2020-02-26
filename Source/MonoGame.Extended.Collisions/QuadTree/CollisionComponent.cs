@@ -38,39 +38,44 @@ namespace MonoGame.Extended.Collisions
         public override void Update(GameTime gameTime)
         {
             // Detect collisions
-            foreach (QuadTreeData quadtreeData in _targetDataDictionary.Values)
+            foreach (QuadTreeData value in _targetDataDictionary.Values)
             {
-                if (quadtreeData.PositionDirty)
+                if (value.PositionDirty)
                 {
-                    quadtreeData.RemoveFromAllParents();
-                    _collisionTree.Insert(quadtreeData);
-                    quadtreeData.MarkPositionClean();
+                    value.RemoveFromAllParents();
+                    _collisionTree.Insert(value);
+                    value.MarkPositionClean();
                 }
 
-                if (quadtreeData.CollisionMaskFlags != 0)
+                if (value.CollisionMaskFlags != 0)
                 {
+                    var target = value.Target;
                     var collisions = new List<QuadTreeData>();
-                    foreach (Quadtree quadTreeDataParent in quadtreeData.Parents)
+                    foreach (Quadtree quadTreeDataParent in value.Parents)
                     {
-                        collisions.AddRange(quadTreeDataParent.Query(quadtreeData));
+                        quadTreeDataParent.QueryWithoutReset(target.Bounds, value.CollisionLayerFlags, value.CollisionMaskFlags,collisions);
+                    }
+                    for (var i = 0; i < collisions.Count; i++)
+                    {
+                        collisions[i].MarkClean();
                     }
 
                     // Generate list of collision Infos
                     for (var index = 0; index < collisions.Count; index++)
                     {
-                        var otherData = collisions[index];
+                        var other = collisions[index];
 
                         // Ignore self
-                        if (otherData == quadtreeData)
+                        if (other == value)
                             continue;
 
                         var collisionInfo = new CollisionEventArgs()
                         {
-                            Other = otherData.Target,
-                            PenetrationVector = CalculatePenetrationVector(quadtreeData.Target.Bounds, otherData.Bounds)
+                            Other = other.Target,
+                            PenetrationVector = CalculatePenetrationVector(value.Target.Bounds, other.Bounds)
                         };
-                        quadtreeData.Target.OnCollision(collisionInfo);
-                        quadtreeData.Bounds = quadtreeData.Target.Bounds;
+                        target.OnCollision(collisionInfo);
+                        value.Bounds = value.Target.Bounds;
                     }
                 }
             }
@@ -115,6 +120,7 @@ namespace MonoGame.Extended.Collisions
         {
             return _targetDataDictionary.ContainsKey(target);
         }
+
 
         #region Penetration Vectors
 

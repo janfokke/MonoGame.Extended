@@ -239,6 +239,15 @@ namespace MonoGame.Extended.Collisions.Tests
         #region Rectangle Rectangle
 
         [Fact]
+        public void PenetrationVectorRectangleAlmostCollideRectangleTest()
+        {
+            IShapeF shape1 = new RectangleF(159.02902f, 701.9615f, 2f, 2f);
+            IShapeF shape2 = new RectangleF(0f, 704f, 640f, 80f);
+
+            Assert.True(shape1.Intersects(shape2));
+        }
+
+        [Fact]
         public void PenetrationVectorRectangleRectangleTest()
         {
             Point2 pos1 = new Point2(0, 0);
